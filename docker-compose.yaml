@@ -1,0 +1,68 @@
+---
+
+version: "3.8"
+
+x-restart-policy:
+  &restart_policy
+  restart: unless-stopped
+
+services:
+  backend:
+    << : *restart_policy
+    build:
+      target: development_build
+      context: ./backend
+      dockerfile: docker/Dockerfile
+      args:
+        DJANGO_ENV: development
+    container_name: backend
+    depends_on:
+      - db
+    env_file: $DEPLOYMENT_CONFIG
+    environment:
+      DJANGO_DATABASE_HOST: db
+      DJANGO_DATABASE_PORT: 5432
+    volumes:
+      - django-static:/code/static
+      - ./backend/media:/code/media
+      - ./backend:/code
+    stdin_open: true
+    tty: true
+    links:
+      - db:db
+    expose:
+      - 8000
+    networks:
+      backend:
+
+  db:
+    << : *restart_policy
+    image: postgres:12-alpine
+    container_name: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    env_file: $DEPLOYMENT_CONFIG
+    ports:
+      - 5432:5432
+    networks:
+      backend:
+
+  nginx:
+    build: ./nginx
+    ports:
+      - 1337:80
+    depends_on:
+      - backend
+    volumes:
+      - django-static:/code/static
+      - ./backend/media:/code/media
+    networks:
+      backend:
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  pgdata:
+  django-static:
